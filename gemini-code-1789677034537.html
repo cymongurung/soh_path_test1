@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Retail Stock Scanner</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Html5Qrcode Library for high-performance camera barcode scanning -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- PapaParse Library for ultra-fast CSV streaming and header detection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+    <!-- Top Navigation Header -->
+    <header class="app-header">
+        <button id="menu-toggle" class="icon-btn" aria-label="Open Menu">
+            <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2.5" fill="none">
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+        <h1 class="header-title">Stock Scanner</h1>
+        <div id="quick-status-badge" class="badge badge-warning">No Data</div>
+    </header>
+
+    <!-- Side Navigation Menu -->
+    <div id="sidebar-overlay" class="overlay"></div>
+    <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h2>☰ MENU</h2>
+            <button id="menu-close" class="close-btn">&times;</button>
+        </div>
+        <nav class="sidebar-nav">
+            <button class="nav-link active" data-target="view-scanner">
+                <span class="nav-icon">📷</span> Scanner
+            </button>
+            <button class="nav-link" data-target="view-upload">
+                <span class="nav-icon">📁</span> Upload Data
+            </button>
+            <button class="nav-link" data-target="view-status">
+                <span class="nav-icon">📊</span> Data Status
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <p>Retail SOH Engine v1.0</p>
+        </div>
+    </aside>
+
+    <!-- Main Container -->
+    <main class="content-container">
+
+        <!-- Notification Toast -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- ================= PAGE 1: SCANNER VIEW ================= -->
+        <section id="view-scanner" class="view-page active">
+            
+            <!-- Camera Scanner Box -->
+            <div class="card scanner-card">
+                <div class="scanner-header">
+                    <h2>Barcode Scanner</h2>
+                    <span id="zoom-status-badge" class="badge badge-info">Zoom: --</span>
+                </div>
+                
+                <div id="reader-wrapper">
+                    <div id="reader"></div>
+                    <div id="scanner-controls" class="scanner-controls hidden">
+                        <button id="btn-start-scanner" class="btn btn-primary btn-large">📷 Start Camera</button>
+                    </div>
+                </div>
+
+                <div id="camera-error" class="alert alert-danger hidden"></div>
+            </div>
+
+            <!-- Manual Search Box -->
+            <div class="card search-card">
+                <h3>Manual Search</h3>
+                <form id="search-form" class="search-form" onsubmit="return false;">
+                    <div class="input-group">
+                        <input type="text" id="manual-search-input" placeholder="Enter Barcode or Product ID" inputmode="numeric" autocomplete="off">
+                        <button type="submit" id="btn-manual-search" class="btn btn-secondary">SEARCH</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Single Product Result Card -->
+            <div id="product-result-container" class="hidden">
+                <div class="card product-card">
+                    <div class="product-header">
+                        <span class="badge badge-success">PRODUCT FOUND</span>
+                        <h2 id="res-description">--</h2>
+                    </div>
+
+                    <!-- Prominent Highlight Cards -->
+                    <div class="highlight-grid">
+                        <div class="highlight-box price-box">
+                            <span class="highlight-label">Retail Selling Price</span>
+                            <span id="res-price" class="highlight-value">--</span>
+                        </div>
+                        <div class="highlight-box soh-box">
+                            <span class="highlight-label">Daily Closing SOH</span>
+                            <span id="res-soh" class="highlight-value">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Details Table -->
+                    <div class="details-grid">
+                        <div class="detail-item">
+                            <span class="detail-label">Product ID:</span>
+                            <span id="res-pid" class="detail-value">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Barcode:</span>
+                            <span id="res-barcode" class="detail-value">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Brand:</span>
+                            <span id="res-brand" class="detail-value">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Department:</span>
+                            <span id="res-dept" class="detail-value">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">VPN:</span>
+                            <span id="res-vpn" class="detail-value">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Related Items Prompt Area -->
+                    <div class="prompt-box">
+                        <p class="prompt-text">Do you want to see related items?</p>
+                        <div class="button-row">
+                            <button id="btn-show-related" class="btn btn-success btn-flex">YES — Related Items</button>
+                            <button id="btn-next-scan" class="btn btn-outline btn-flex">NO / Next Scan</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Related Items Section -->
+                <div id="related-items-container" class="card related-card hidden">
+                    <h3>RELATED ITEMS — SAME VPN (<span id="related-vpn-label">--</span>)</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Product ID</th>
+                                    <th>Barcode</th>
+                                    <th>Description</th>
+                                    <th>Retail Price</th>
+                                    <th>Closing SOH</th>
+                                </tr>
+                            </thead>
+                            <tbody id="related-items-tbody">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PAGE 2: UPLOAD DATA VIEW ================= -->
+        <section id="view-upload" class="view-page">
+            <div class="card">
+                <h2>Upload Daily Inventory CSV</h2>
+                <p class="subtext">Select your daily SOH CSV file. The application automatically detects headers and validates data prior to replacement.</p>
+                
+                <div class="upload-dropzone" id="dropzone">
+                    <input type="file" id="csv-file-input" accept=".csv" class="file-input">
+                    <div class="dropzone-content">
+                        <span class="upload-icon">📁</span>
+                        <p><strong>Click to choose a file</strong> or drag & drop CSV here</p>
+                        <span class="file-info-label" id="file-name-display">No file selected</span>
+                    </div>
+                </div>
+
+                <div id="upload-error-box" class="alert alert-danger hidden"></div>
+            </div>
+
+            <!-- Confirmation Modal / Card -->
+            <div id="confirmation-card" class="card confirmation-card hidden">
+                <h3 class="confirmation-title">Replace Current Inventory?</h3>
+                
+                <div class="comparison-grid">
+                    <div class="comp-box comp-current">
+                        <h4>Current Data</h4>
+                        <div class="comp-val"><label>Date:</label> <span id="conf-curr-date">--</span></div>
+                        <div class="comp-val"><label>Rows:</label> <span id="conf-curr-rows">--</span></div>
+                        <div class="comp-val"><label>File:</label> <span id="conf-curr-file">--</span></div>
+                    </div>
+                    <div class="comp-box comp-new">
+                        <h4>New Data</h4>
+                        <div class="comp-val"><label>Date:</label> <span id="conf-new-date">--</span></div>
+                        <div class="comp-val"><label>Rows:</label> <span id="conf-new-rows">--</span></div>
+                        <div class="comp-val"><label>File:</label> <span id="conf-new-file">--</span></div>
+                    </div>
+                </div>
+
+                <div id="date-warning-box" class="alert alert-warning hidden">
+                    ⚠️ <strong>Warning:</strong> The new stock date appears older than or equal to the current stock date!
+                </div>
+
+                <div class="button-row margin-top">
+                    <button id="btn-cancel-upload" class="btn btn-outline btn-flex">Cancel</button>
+                    <button id="btn-confirm-upload" class="btn btn-danger btn-flex">Replace & Update</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= PAGE 3: DATA STATUS VIEW ================= -->
+        <section id="view-status" class="view-page">
+            <div class="card">
+                <h2>Data Status Overview</h2>
+                <div class="status-grid">
+                    <div class="status-card">
+                        <span class="status-label">Inventory Status</span>
+                        <span id="stat-status" class="status-value">--</span>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-label">Stock Date</span>
+                        <span id="stat-date" class="status-value">--</span>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-label">Number of Products</span>
+                        <span id="stat-rows" class="status-value">--</span>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-label">Total Closing SOH</span>
+                        <span id="stat-soh" class="status-value">--</span>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-label">Total Retail Value</span>
+                        <span id="stat-value" class="status-value">--</span>
+                    </div>
+                    <div class="status-card">
+                        <span class="status-label">Current Filename</span>
+                        <span id="stat-filename" class="status-value truncate">--</span>
+                    </div>
+                    <div class="status-card full-width">
+                        <span class="status-label">Last Updated</span>
+                        <span id="stat-updated" class="status-value">--</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
